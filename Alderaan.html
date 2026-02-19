@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Death Star Fires</title>
+<style>
+    body {
+        margin: 0;
+        background: black;
+        overflow: hidden;
+    }
+
+    canvas {
+        display: block;
+    }
+
+    #ui {
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 10;
+    }
+
+    button {
+        padding: 10px 20px;
+        margin: 5px;
+        font-size: 16px;
+        background: black;
+        color: white;
+        border: 2px solid #39DB6E;
+        cursor: pointer;
+    }
+
+    button:hover {
+        background: #39DB6E;
+        color: black;
+    }
+</style>
+</head>
+
+<body>
+
+<div id="ui">
+    <button id="fireBtn">Fire Death Star</button>
+    <button id="resetBtn">Reset</button>
+</div>
+
+<canvas id="space"></canvas>
+
+<script>
+const canvas = document.getElementById("space");
+const ctx = canvas.getContext("2d");
+
+let shakeIntensity = 0;
+let phase = "idle";
+let beamProgress = 0;
+let explosionRadius = 0;
+let fragments = [];
+let shockwaveRadius = 0;
+let flashOpacity = 0;
+
+// Responsive Canvas
+function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+window.addEventListener("resize", resizeCanvas);
+resizeCanvas();
+
+// Objects
+const deathStar = { x: 150, y: 0, radius: 0 };
+const planet = { x: 0, y: 0, radius: 0 };
+
+// Moving Starfield
+let stars = [];
+
+function createStars() {
+    stars = [];
+    for (let i = 0; i < 400; i++) {
+        stars.push({
+            x: Math.random() * canvas.width,
+            y: Math.random() * canvas.height,
+            speed: Math.random() * 2 + 0.5
+        });
+    }
+}
+createStars();
+
+function updateStars() {
+    ctx.fillStyle = "white";
+    stars.forEach(star => {
+        star.x -= star.speed;
+        if (star.x < 0) {
+            star.x = canvas.width;
+            star.y = Math.random() * canvas.height;
+        }
+        ctx.fillRect(star.x, star.y, 2, 2);
+    });
+}
+
+// Draw Death Star
+function drawDeathStar() {
+    deathStar.y = canvas.height / 2;
+    deathStar.radius = canvas.width * 0.06;
+
+    ctx.fillStyle = "#aaa";
+    ctx.beginPath();
+    ctx.arc(deathStar.x, deathStar.y, deathStar.radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#555";
+    ctx.beginPath();
+    ctx.arc(
+        deathStar.x + deathStar.radius * 0.4,
+        deathStar.y - deathStar.radius * 0.3,
+        deathStar.radius * 0.3,
+        0,
+        Math.PI * 2
+    );
+    ctx.fill();
+
+    ctx.fillStyle = "white";
+    ctx.font = `${canvas.width * 0.015}px Arial`;
+    ctx.textAlign = "center";
+    ctx.fillText("Death Star", deathStar.x, deathStar.y + deathStar.radius + 25);
+}
+
+// Draw Planet
+function drawPlanet() {
+    planet.x = canvas.width - canvas.width * 0.15;
+    planet.y = canvas.height / 2;
+    planet.radius = canvas.width * 0.07;
+
+    ctx.fillStyle = "#4fa3ff";
+    ctx.beginPath();
+    ctx.arc(planet.x, planet.y, planet.radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "white";
+    ctx.font = `${canvas.width * 0.015}px Arial`;
+    ctx.textAlign = "center";
+    ctx.fillText("Alderaan", planet.x, planet.y + planet.radius + 25);
+}
+
+// Beam
+function drawBeam() {
+    ctx.strokeStyle = "lime";
+    ctx.lineWidth = canvas.width * 0.01;
+    ctx.shadowColor = "lime";
+    ctx.shadowBlur = 25;
+
+    ctx.beginPath();
+    ctx.moveTo(deathStar.x + deathStar.radius, deathStar.y);
+    ctx.lineTo(
+        deathStar.x + deathStar.radius +
+        beamProgress * (planet.x - deathStar.x - deathStar.radius),
+        deathStar.y
+    );
+    ctx.stroke();
+
+    ctx.shadowBlur = 0;
+}
+
+// Explosion
+function drawExplosion() {
+    ctx.fillStyle = "orange";
+    ctx.beginPath();
+    ctx.arc(planet.x, planet.y, explosionRadius, 0, Math.PI * 2);
+    ctx.fill();
+}
+
+// Shockwave Ring
+function drawShockwave() {
+    ctx.strokeStyle = "white";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(planet.x, planet.y, shockwaveRadius, 0, Math.PI * 2);
+    ctx.stroke();
+}
+
+// Debris Fragments
+function createFragments() {
+    fragments = [];
+    for (let i = 0; i < 35; i++) {
+        fragments.push({
+            x: planet.x,
+            y: planet.y,
+            vx: (Math.random() - 0.5) * 12,
+            vy: (Math.random() - 0.5) * 12,
+            size: Math.random() * 6 + 2
+        });
+    }
+}
+
+function updateFragments() {
+    ctx.fillStyle = "orange";
+    fragments.forEach(f => {
+        f.x += f.vx;
+        f.y += f.vy;
+        ctx.fillRect(f.x, f.y, f.size, f.size);
+    });
+}
+
+// Red Flash
+function drawFlash() {
+    if (flashOpacity > 0) {
+        ctx.fillStyle = `rgba(255,0,0,${flashOpacity})`;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        flashOpacity -= 0.05;
+    }
+}
+
+// UI Buttons
+document.getElementById("fireBtn").onclick = () => {
+    if (phase === "idle") phase = "charge";
+};
+
+document.getElementById("resetBtn").onclick = resetScene;
+
+function resetScene() {
+    phase = "idle";
+    beamProgress = 0;
+    explosionRadius = 0;
+    fragments = [];
+    shockwaveRadius = 0;
+    flashOpacity = 0;
+    shakeIntensity = 0;
+}
+
+// Animation Loop
+function animate() {
+    ctx.save();
+
+    if (shakeIntensity > 0) {
+        const dx = (Math.random() - 0.5) * shakeIntensity;
+        const dy = (Math.random() - 0.5) * shakeIntensity;
+        ctx.translate(dx, dy);
+        shakeIntensity *= 0.9;
+    }
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    updateStars();
+    drawDeathStar();
+
+    if (phase !== "destroyed") drawPlanet();
+
+    if (phase === "charge") {
+        beamProgress += 0.01;
+        drawBeam();
+
+        if (beamProgress >= 1) {
+            phase = "explode";
+            createFragments();
+            flashOpacity = 0.6;
+        }
+    }
+
+    if (phase === "explode") {
+        explosionRadius += canvas.width * 0.02;
+        shockwaveRadius += canvas.width * 0.015;
+        shakeIntensity = 20;
+
+        drawExplosion();
+        drawShockwave();
+        updateFragments();
+        drawFlash();
+
+        if (explosionRadius > planet.radius * 2) {
+            phase = "destroyed";
+        }
+    }
+
+    ctx.restore();
+    requestAnimationFrame(animate);
+}
+
+animate();
+</script>
+
+</body>
+</html>
